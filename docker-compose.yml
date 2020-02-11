@@ -1,0 +1,97 @@
+version: '3'
+
+networks:
+  backend:
+    driver: bridge
+
+services:
+
+### Workspace Utilities ##################################
+    workspace:
+      build:
+        context: ./docker/workspace
+        args:
+          - SYMFODOCK_PHP_VERSION=7.4
+          - INSTALL_SSH2=false
+          - INSTALL_AMQP=false
+          - INSTALL_PHPREDIS=true
+          - INSTALL_NODE=true
+          - INSTALL_YARN=true
+          - INSTALL_V8JS=false
+          - INSTALL_WORKSPACE_SSH=false
+          - INSTALL_SYMFONY=true
+          - INSTALL_PYTHON=false
+          - INSTALL_PG_CLIENT=false
+          - INSTALL_MYSQL_CLIENT=false
+          - INSTALL_PING=true
+          - PUID=1000
+          - PGID=1000
+          - CHROME_DRIVER_VERSION=2.42
+          - NODE_VERSION=node
+          - YARN_VERSION=latest
+          - TZ=UTC
+          - INSTALL_SUPERVISOR=false
+          - http_proxy
+          - https_proxy
+          - no_proxy
+      volumes:
+        - ./:/var/www:cached
+      ports:
+        - "2222:22"
+      tty: true
+      networks:
+        - backend
+
+### PHP-FPM ##############################################
+    php-fpm:
+      build:
+        context: ./docker/php-fpm
+        args:
+          - SYMFODOCK_PHP_VERSION=7.4
+          - INSTALL_SSH2=false
+          - INSTALL_AMQP=false
+          - INSTALL_PHPREDIS=false
+          - INSTALL_MYSQLI=true
+          - INSTALL_PGSQL=false
+          - INSTALL_PG_CLIENT=false
+          - INSTALL_ADDITIONAL_LOCALES=false
+          - INSTALL_MYSQL_CLIENT=false
+          - INSTALL_PING=true
+          - ADDITIONAL_LOCALES="es_ES.UTF-8 fr_FR.UTF-8"
+          - PUID=1000
+          - PGID=1000
+          - http_proxy
+          - https_proxy
+          - no_proxy
+      volumes:
+        - ./docker/php-fpm/php7.4.ini:/usr/local/etc/php/php.ini
+        - ./:/var/www:cached
+      expose:
+        - "9000"
+      depends_on:
+        - workspace
+      networks:
+        - backend
+
+### NGINX Server #########################################
+    nginx:
+      build:
+        context: ./docker/nginx
+        args:
+          - PHP_UPSTREAM_CONTAINER=php-fpm
+          - PHP_UPSTREAM_PORT=9000
+          - http_proxy
+          - https_proxy
+          - no_proxy
+      volumes:
+        - ./:/var/www:cached
+        - ./docker/logs/nginx/:/var/log/nginx
+        - ./docker/nginx/sites/:/etc/nginx/sites-available
+        - ./docker/nginx/ssl/:/etc/nginx/ssl
+      ports:
+        - "80:80"
+        - "443:443"
+      depends_on:
+        - php-fpm
+      networks:
+        - backend
